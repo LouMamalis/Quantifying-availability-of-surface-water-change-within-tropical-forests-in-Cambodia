@@ -1,0 +1,427 @@
+//this script is from google earth engine
+//creation of the surface water transition maps 
+
+//map ROI onto the map
+Map.addLayer(gibis, {color:'blue'}, 'gibis_range');
+
+//import the export images individually (84) from the water classifier
+//each image is a summary of each quarter from each year
+//from assets (after exporting them from the other trapeang script individually)
+
+//then wrap them back up in an image collection 
+var qw_IC = ee.ImageCollection([
+qw_export2000_1, qw_export2000_2, qw_export2000_3, qw_export2000_4,
+qw_export2001_1, qw_export2001_2, qw_export2001_3, qw_export2001_4,
+qw_export2002_1, qw_export2002_2, qw_export2002_3, qw_export2002_4,
+qw_export2003_1, qw_export2003_2, qw_export2003_3, qw_export2003_4, 
+qw_export2004_1, qw_export2004_2, qw_export2004_3, qw_export2004_4, 
+qw_export2005_1, qw_export2005_2, qw_export2005_3, qw_export2005_4, 
+qw_export2006_1, qw_export2006_2, qw_export2006_3, qw_export2006_4, 
+qw_export2007_1, qw_export2007_2, qw_export2007_3, qw_export2007_4,
+qw_export2008_1, qw_export2008_2, qw_export2008_3, qw_export2008_4,
+qw_export2009_1, qw_export2009_2, qw_export2009_3, qw_export2009_4,
+qw_export2010_1, qw_export2010_2, qw_export2010_3, qw_export2010_4,
+qw_export2011_1, qw_export2011_2, qw_export2011_3, qw_export2011_4,
+qw_export2012_1, qw_export2012_2, qw_export2012_3, qw_export2012_4,
+qw_export2013_1, qw_export2013_2, qw_export2013_3, qw_export2013_4,
+qw_export2014_1, qw_export2014_2, qw_export2014_3, qw_export2014_4, 
+qw_export2015_1, qw_export2015_2, qw_export2015_3, qw_export2015_4,
+qw_export2016_1, qw_export2016_2, qw_export2016_3, qw_export2016_4,
+qw_export2017_1, qw_export2017_2, qw_export2017_3, qw_export2017_4,
+qw_export2018_1, qw_export2018_2, qw_export2018_3, qw_export2018_4,
+qw_export2019_1, qw_export2019_2, qw_export2019_3, qw_export2019_4,
+qw_export2020_1, qw_export2020_2, qw_export2020_3, qw_export2020_4
+             ]);
+print(qw_IC, 'quarterly water 2000-2020');
+Map.addLayer(qw_IC.filterMetadata('system:index', 'equals', '79').select('classification'), {}, 'qw_IC');
+
+//make var called years with all the years in it
+var years = ee.List.sequence(2000, 2020);
+
+//annual water image collection - set up using a function with yr
+//add year property to the images, year equals yr = consider all years 
+//gt = greater than 0 (is it wet in any quarter? out of the 20 that there are within 5 year time period)
+//select just the classification band and get rid of all others
+var annual_sum = function(yr){
+  var IC = qw_IC.filterMetadata('year', 'equals', yr).select('classification').sum().gt(0);
+  return(IC.set('year', yr));
+};
+
+//creates 21 images within a new IC 
+//uses the var, years created above, for each year 
+//returns one image per year with just one band (classification)
+var aw_IC = ee.ImageCollection(years.map(annual_sum));
+print(aw_IC, 'annual water');
+
+//create a table of data of how much flooding there is within the g ibis range
+//create a loop using map function 
+//creates property: sum at bottom (indiv for each year) 
+//im is an image...?
+//now a feature collection
+var annual_flood = aw_IC.map(function(im){
+  return(im.reduceRegions({
+    reducer: ee.Reducer.sum(),
+    collection: gibis,
+    scale: 30
+  }));
+}).flatten();
+print(annual_flood, 'annual_flood');
+
+//attempting to print a time series chart using the annual water IC
+//print(ui.Chart.image.series(aw_IC, gibis, ee.Reducer.mean(), 30, maxPixels=200000000));
+
+//creates a feature collection with one image per year
+//uses the map function creating a feature from the IC
+//each one has one property = sum 
+//toDictionary extracts the property 'sum' from a feature 
+var annual_flood_extent = annual_flood.map(function(f){
+    f = ee.Feature(f);
+    return ee.Feature(null, f.toDictionary(['sum']));
+ });
+ print(annual_flood_extent, 'annual flood extent');
+ 
+ // Export the FeatureCollection
+ //export this to R to make the graph 
+Export.table.toDrive({
+  collection: annual_flood_extent,
+  description: 'exportsw_sum',
+  fileFormat: 'CSV',
+});
+
+////DRY SEASON SURFACE WATER CALCULATIONS////
+//here we are selecting the data from the dry season
+//dry season sum, only places wet in 3 or 4 quarters of the year:
+//CMB notes if you set gt(2) you will only find extent of locations that flood in 3 or 4 quarters per year
+var dryseason_sum = function(yr){
+  var IC = qw_IC.filterMetadata('year', 'equals', yr).select('classification').sum().gt(2);  
+  return(IC.set('year', yr));
+};
+
+//here we have created a 21 image collection per year 
+//we above selected the dry season months 
+var dsw_IC = ee.ImageCollection(years.map(dryseason_sum));
+print(dsw_IC, 'dry season water');
+
+//we have done the same as above except for the dry season months
+var dryseason_flood = dsw_IC.map(function(im){
+  return(im.reduceRegions({
+    reducer: ee.Reducer.sum(),
+    collection: gibis,
+    scale: 30
+  }));
+}).flatten();
+print(dryseason_flood, 'dryseason_flood');
+
+
+//here we are then summing the sw together for each dry season per year 
+ var annual_dryseason_extent = dryseason_flood.map(function(f){
+    f = ee.Feature(f);
+    return ee.Feature(null, f.toDictionary(['sum']));
+ });
+ print(annual_dryseason_extent, 'dry season flood extent');
+
+//exporting the dry season sw
+Export.table.toDrive({
+  collection: annual_dryseason_extent,
+  description: 'exportdsw_sum',
+  fileFormat: 'CSV',
+});
+
+//compare time periods using qw_IC (IC at start)
+//e.g. first 5 years = early, middle 5 years = mid and last 5 years = end
+//first 5 years, summarise for each pixel how many months did it have water? (sum)
+//20 quarters per 5 years 
+//filtering here on metadata with the year filterdate wont work 
+var qw_start = qw_IC.filterMetadata('year', 'less_than', 2006); //2004
+var qw_mid = qw_IC.filterMetadata('year', 'less_than', 2015).filterMetadata('year', 'greater_than', 2005); //2012 and 2007
+var qw_end = qw_IC.filterMetadata('year', 'greater_than', 2015);
+
+//tells it which band we want to select - classification
+//.first selects the first image in the collection
+//using the vars created above
+print(qw_start, 'start'); //now has the quarter and the year shown 2000-2005
+Map.addLayer(qw_start.first().select('classification'), {}, 'Start');
+
+print(qw_mid, 'mid'); //now has the quarter and the year shown 2008-2012
+Map.addLayer(qw_mid.first().select('classification'), {}, 'Mid'); 
+
+print(qw_end, 'end'); //now has the quarter and the year shown 2015-2020
+Map.addLayer(qw_end.first().select('classification'), {}, 'End'); 
+
+//sums the flooded areas for the three 5 yr time periods 
+//var flooded_total_start = qw_start.sum();
+//var flodded_total_mid = qw_mid.sum();
+//var flooded_total_end = qw_end.sum();
+
+//uses vars created above gives flooded sum within the ibis area 
+//repeated for each of the 5 year time periods 
+//need to use the qw values here for start/mid/end
+var flooded_start = qw_start.map(function(im){
+ return(im.reduceRegions({
+    reducer: ee.Reducer.sum(),
+    collection: gibis,
+    scale: 30
+}));
+}).flatten();
+print(flooded_start, 'flooded_start');
+
+var flooded_mid = qw_mid.map(function(im){
+ return(im.reduceRegions({
+    reducer: ee.Reducer.sum(),
+    collection: gibis,
+    scale: 30
+}));
+}).flatten();
+  
+var flooded_end = qw_end.map(function(im){
+ return(im.reduceRegions({
+    reducer: ee.Reducer.sum(),
+    collection: gibis,
+    scale: 30
+}));
+}).flatten();
+
+//four potential states of flooded: 
+//1. nearly permanently flooded (water present in 16 or more quarters)
+//2. irregularly flooded (flooded between 6 and 15 inclusive quarters) 
+//3. rarely flooded (flooded in less than 5 quarters) 
+//4. never flooded (flooded in no quarters)
+
+//returns an image where it gives 0 or 1 per pixel
+//1 is where the value is larger than that in the brackets
+//looking at how many of the total 20 quarters are flooded... 
+//using gt here as 'greater than' 15, looking at pixels that were flooded in 15 or more quarters
+var perm_flooded_start = qw_start.select('classification').sum().gt(15).clip(gibis); //greater than 15 quarters flooded
+var irreg_flooded_start = qw_start.select('classification').sum().gt(5).multiply(qw_start.select('classification').sum().lte(15)).clip(gibis); //greater than 5 and less than or equal to 15
+var rare_flooded_start = qw_start.select('classification').sum().gt(1).multiply(qw_start.select('classification').sum().lte(5)).clip(gibis); //greater than 1 and less than or equal to 5
+var no_flooded_start = qw_start.select('classification').sum().lte(1).clip(gibis); //less than or equal to 1
+
+//map the layers for first time period
+Map.addLayer(perm_flooded_start, {min:0, max:1, palette: ['00FFFF', '0000FF']}, "Permanent water in first period");
+Map.addLayer(irreg_flooded_start, {min:0, max:1, palette: ['00FFFF', '0000FF']}, "Irregular water in first period");
+Map.addLayer(rare_flooded_start, {min:0, max:1}, "Rare water in first period");
+Map.addLayer(no_flooded_start, {min:0, max:1}, "Never water in first period");
+
+//creating a single image for the 4 different states, 1-4 
+//need to multiply them by 2, 3 and 4 to give an image made up of 1s, 2s, 3s and 4s
+var initial_sw = ee.ImageCollection([perm_flooded_start, irreg_flooded_start, rare_flooded_start, no_flooded_start]);
+var initial_sw_im = perm_flooded_start.add(irreg_flooded_start.multiply(2)).add(rare_flooded_start.multiply(3)).add(no_flooded_start.multiply(4));
+
+Map.addLayer(initial_sw_im, {}, "initial sw");
+Export.image.toDrive({image:initial_sw_im, description:"initial sw", folder:"trapeangs", 
+region:gibis, scale:30, maxPixels:2e8});
+
+//repeated the process above looking at the 4 states for the end time period (2015-2020)
+var perm_flooded_end = qw_end.select('classification').sum().gt(15).clip(gibis);
+var irreg_flooded_end = qw_end.select('classification').sum().gt(5).multiply(qw_end.select('classification').sum().lte(15)).clip(gibis); 
+var rare_flooded_end = qw_end.select('classification').sum().gt(1).multiply(qw_end.select('classification').sum().lte(5)).clip(gibis);
+var no_flooded_end = qw_end.select('classification').sum().lte(1).clip(gibis);
+
+//map layers for last time period 
+//testing blue and cyan palette: palette: ['00FFFF', '0000FF']
+Map.addLayer(perm_flooded_end, {min:0, max:1}, "Permanent water in last period");
+Map.addLayer(irreg_flooded_end, {min:0, max:1}, "Irregular water in last period");
+Map.addLayer(rare_flooded_end, {min:0, max:1}, "Rare water in last period");
+Map.addLayer(no_flooded_end, {min:0, max:1}, "Never water in last period");
+
+//can then multiply this with values from other time frames
+//multiply that by 0 or 1 from the second image
+//can then see how it has changed over time 
+//e.g. if it stays as 1 then it has remained flooded
+
+//looking at pixels that stay permanently flooded between the two time periods 
+//multipling the permanently flooded pixels from the first time period with those from the last time period
+//to show areas that are perm flooded then map it
+var both_flooded = perm_flooded_start.multiply(perm_flooded_end);
+Map.addLayer(both_flooded, {min:0, max:1}, "Permanently flooded first and last periods");
+
+//will create an irregularly flooded image - looking at the seasonal patterns of flooding
+//looking at the irregularly/seasonally flooded areas
+//looking at those from the first time period and those from the last 
+var both_seasonally_flooded = irreg_flooded_start.multiply(irreg_flooded_end);
+Map.addLayer(both_seasonally_flooded, {min:0, max:1}, "Seasonally flooded first and last periods");
+
+//looking at those pixels that have changed from permanently flooded to irregularly flooded 
+var perm_to_regular = perm_flooded_start.multiply(irreg_flooded_end);
+Map.addLayer(perm_to_regular, {min:0, max:1}, "Changed from permanent to irregular flooding");
+
+//making a colourful map to show the change in surface water over time for all transitions
+//creating a single image here using logic 
+//there are 16 possible options for th water transitions
+//create a grid with all 16 of the options then can apply 16 colours to each transition
+//multiply and create them by logic using the start and end state
+
+//image(2) creates an image full of 2's then multiply by irreg and perm layers
+//if both of them are 1's they will remain 1's
+//but if they are 0 multiply by 2 to make 0 and 2's
+var transition_map = both_flooded.add(ee.Image(2).multiply(irreg_flooded_start.multiply(perm_flooded_end)))
+                    .add(ee.Image(3).multiply(rare_flooded_start.multiply(perm_flooded_end)))
+                    .add(ee.Image(4).multiply(no_flooded_start.multiply(perm_flooded_end)))
+                    .add(ee.Image(5).multiply(perm_flooded_start.multiply(irreg_flooded_end)))
+                    .add(ee.Image(6).multiply(irreg_flooded_start.multiply(irreg_flooded_end)))
+                    .add(ee.Image(7).multiply(rare_flooded_start.multiply(irreg_flooded_end)))
+                    .add(ee.Image(8).multiply(no_flooded_start.multiply(irreg_flooded_end)))
+                    .add(ee.Image(9).multiply(perm_flooded_start.multiply(rare_flooded_end)))
+                    .add(ee.Image(10).multiply(irreg_flooded_start.multiply(rare_flooded_end)))
+                    .add(ee.Image(11).multiply(rare_flooded_start.multiply(rare_flooded_end)))
+                    .add(ee.Image(12).multiply(no_flooded_start.multiply(rare_flooded_end)))
+                    .add(ee.Image(13).multiply(perm_flooded_start.multiply(no_flooded_end)))
+                    .add(ee.Image(14).multiply(irreg_flooded_start.multiply(no_flooded_end)))
+                    .add(ee.Image(15).multiply(rare_flooded_start.multiply(no_flooded_end)))
+                    .add(ee.Image(16).multiply(no_flooded_start.multiply(no_flooded_end)));
+Map.addLayer(transition_map, {}, "transition map");
+
+//export to google drive
+Export.image.toDrive({image:transition_map, description:"transition_map", folder:"trapeangs", 
+region:gibis, scale:30, maxPixels:2e8});
+
+//looking at the before and after states of the surface water
+//not transitions just the states of the surface water between 2000 and 2005
+//can then be compared with 2015 and 2020 more clearly...? 
+
+//trying to create a map just for 2000-2005 - 20 quarters
+//showing areas that were permanent/irreg/rare/never flooded
+//4 = perm flooded through to 1 = never flooded
+var start_sw_states = ee.ImageCollection([perm_flooded_start, irreg_flooded_start, rare_flooded_start, no_flooded_start]);
+var start_sw_states_im = perm_flooded_start.multiply(4).add(irreg_flooded_start.multiply(3)).add(rare_flooded_start.multiply(2)).add(no_flooded_start);
+Map.addLayer(start_sw_states_im, {}, "start_sw_states");
+Export.image.toDrive({image:start_sw_states, description:"start_sw_states", folder:"trapeangs", 
+region:gibis, scale:30, maxPixels:2e8});
+
+
+//trying to create a map just for 2015-2020 - 20 quarters
+//showing areas that were permanent/irreg/rare/never flooded
+var end_sw_states = ee.ImageCollection([perm_flooded_end, irreg_flooded_end, rare_flooded_end, no_flooded_end]);
+var end_sw_states_im = perm_flooded_end.multiply(4).add(irreg_flooded_end.multiply(3)).add(rare_flooded_end.multiply(2)).add(no_flooded_end);
+Map.addLayer(end_sw_states_im, {}, "end_sw_states");
+Export.image.toDrive({image:end_sw_states_im, description:"end_sw_states", folder:"trapeangs", 
+region:gibis, scale:30, maxPixels:2e8});
+
+///PRECIPITATION///
+//looking at the annual precipitation from 2000-2020
+//to be plotted alongside the total surface water
+//Read in CHIRPS data, daily and pentad rainfall, filter dates
+var rainPentad = ee.ImageCollection('UCSB-CHG/CHIRPS/PENTAD')
+                  .filter(ee.Filter.date('1999-01-01', '2020-12-31'));
+                  
+//Filter to the giant ibis estimated range: Map clip function onto each image
+var rainPentad = rainPentad.map(function(im){return(im.clip(gibis))});                  
+print(rainPentad, 'rainPentad');
+//Plot precipitation
+var rainPentadVis = {
+   min: 1.0,
+   max: 17.0,
+   palette: ['001137', '0aab1e', 'e7eb05', 'ff4a2d', 'e90000'],
+ };
+//Map.setCenter(17.93, 7.71, 2);
+Map.addLayer(rainPentad, rainPentadVis, 'rainPentad');
+
+//Define time range
+var startyear = 2000; 
+var endyear = 2020; 
+
+var startmonth = 1; 
+var endmonth = 12; 
+
+//List years
+var years = ee.List.sequence(startyear,endyear);
+//List months
+var months = ee.List.sequence(startmonth,endmonth);
+
+//calculating the total annual rainfall
+//Aggregate total rainfall over year
+var yearTotal = ee.ImageCollection.fromImages(
+      years.map(function(y) {
+        var start = ee.String(ee.Number(y).subtract(1).int()).cat('-01-01') 
+        var end = ee.String(ee.Number(y).int()).cat('-12-31')
+        
+          return rainPentad.filterDate(start, end)
+                    .sum()
+                    .set('year', y);
+}).flatten());
+print( "Annual total", yearTotal);
+
+//Plot some years
+var image = yearTotal.filterMetadata('year', 'equals', 2000);
+var image = image.first();
+Map.addLayer(image,{min:0, max:2000}, "2000");
+var image = yearTotal.filterMetadata('year', 'equals', 2010);
+var image = image.first();
+Map.addLayer(image,{min:0, max:2000}, "2010");
+
+var TS1 = ui.Chart.image.series(yearTotal, gibis,  ee.Reducer.mean(), 1000, 'year')
+    .setOptions({title: 'Annual Rain',vAxis: {title: 'Rain (mm)'},
+});
+print(TS1);
+
+var outputAnnual = yearTotal.sort('year').toBands();
+print(outputAnnual);
+var features = yearTotal.map(function(im){
+  return(im.reduceRegions(gibis, ee.Reducer.mean(), 1000));
+}).flatten();
+print(features, 'features');
+
+//export the data to my google drive 
+Export.table.toDrive(features,
+"PrecipitationYearly",
+"trapeangs",
+"PrecipitationYearly");
+//////
+
+///STRM ELEVATION DATA///
+//read in the elevation data
+//clipped to the gibis range... not quite sure what it is showing me though....
+var elevation_layer = elevation.clip(gibis);
+Map.addLayer(elevation_layer, {}, 'elevation');
+
+//trying to export...
+//did not export, not quite sure why 
+Export.image.toDrive({image:elevation_layer.select("elevation"), description:"elevation_map", folder:"trapeangs", 
+region:gibis, scale:30, maxPixels:2e8});
+
+
+///ROADS///
+Map.addLayer(roads, {}, 'roads');
+
+///VILLAGES///
+Map.addLayer(villages, {}, 'villages');
+
+//extracting sw data for the year 2000
+var qw_2000 = qw_IC.filterMetadata('year', 'equals', 2000);
+Map.addLayer(qw_2000.first().select('classification'), {}, 'qw_2000');
+
+//uses vars created above gives flooded sum within the ibis area 
+var flooded_2000 = qw_2000.map(function(im){
+ return(im.reduceRegions({
+    reducer: ee.Reducer.sum(),
+    collection: gibis,
+    scale: 30
+}));
+}).flatten();
+print(flooded_2000, 'flooded_2000');
+
+//setting the categories for the sw for 2000
+//this image was used in the INLA model to look at the initial surface water states of the pixels 
+var perm_flooded_2000 = qw_2000.select('classification').sum().gt(3).clip(gibis);
+var irreg_flooded_2000 = qw_2000.select('classification').sum().gt(2).clip(gibis);//.multiply(qw_2000('classification').sum().lte(3)).clip(gibis); 
+var rare_flooded_2000 = qw_2000.select('classification').sum().gt(1).clip(gibis);//.multiply(qw_2000('classification').sum().lte(2)).clip(gibis);
+var no_flooded_2000 = qw_2000.select('classification').sum().lte(1).clip(gibis);
+
+//map the layers for first time period
+Map.addLayer(perm_flooded_2000, {min:0, max:1, palette: ['00FFFF', '0000FF']}, "Permanent water in 2000");
+Map.addLayer(irreg_flooded_2000, {min:0, max:1, palette: ['00FFFF', '0000FF']}, "Irregular water in 2000");
+Map.addLayer(rare_flooded_2000, {min:0, max:1}, "Rare water in first 2000");
+Map.addLayer(no_flooded_2000, {min:0, max:1}, "Never water in first 2000");
+
+//trying to make an image collection to show the four different states of wetness during 2000
+var qw_2000_IC = ee.ImageCollection([perm_flooded_2000, irreg_flooded_2000, rare_flooded_2000, no_flooded_2000]);
+
+//making an image that could be exported to google drive 
+var qw_2000_im = perm_flooded_2000.add(irreg_flooded_2000).add(rare_flooded_2000).add(no_flooded_2000);
+
+print(qw_2000_im, 'quarterly water 2000');
+Map.addLayer(qw_2000_im, {}, 'qw_2000_im');
+
+//export to google drive
+Export.image.toDrive({image:qw_2000_im, description:"qw_2000_IW", folder:"trapeangs", 
+region:gibis, scale:30, maxPixels:2e8});

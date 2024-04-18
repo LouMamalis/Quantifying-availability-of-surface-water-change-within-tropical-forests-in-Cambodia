@@ -1,0 +1,127 @@
+//script from google earth engine 
+//this script computes the distance to surface water of the giant ibis nest and non-nest points
+
+//image collection 
+//read in all the water quarterly images from before
+var qw_IC = ee.ImageCollection([
+qw_export2000_1, qw_export2000_2, qw_export2000_3, qw_export2000_4,
+qw_export2001_1, qw_export2001_2, qw_export2001_3, qw_export2001_4,
+qw_export2002_1, qw_export2002_2, qw_export2002_3, qw_export2002_4,
+qw_export2003_1, qw_export2003_2, qw_export2003_3, qw_export2003_4, 
+qw_export2004_1, qw_export2004_2, qw_export2004_3, qw_export2004_4, 
+qw_export2005_1, qw_export2005_2, qw_export2005_3, qw_export2005_4, 
+qw_export2006_1, qw_export2006_2, qw_export2006_3, qw_export2006_4, 
+qw_export2007_1, qw_export2007_2, qw_export2007_3, qw_export2007_4,
+qw_export2008_1, qw_export2008_2, qw_export2008_3, qw_export2008_4,
+qw_export2009_1, qw_export2009_2, qw_export2009_3, qw_export2009_4,
+qw_export2010_1, qw_export2010_2, qw_export2010_3, qw_export2010_4,
+qw_export2011_1, qw_export2011_2, qw_export2011_3, qw_export2011_4,
+qw_export2012_1, qw_export2012_2, qw_export2012_3, qw_export2012_4,
+qw_export2013_1, qw_export2013_2, qw_export2013_3, qw_export2013_4,
+qw_export2014_1, qw_export2014_2, qw_export2014_3, qw_export2014_4, 
+qw_export2015_1, qw_export2015_2, qw_export2015_3, qw_export2015_4,
+qw_export2016_1, qw_export2016_2, qw_export2016_3, qw_export2016_4,
+qw_export2017_1, qw_export2017_2, qw_export2017_3, qw_export2017_4,
+qw_export2018_1, qw_export2018_2, qw_export2018_3, qw_export2018_4,
+qw_export2019_1, qw_export2019_2, qw_export2019_3, qw_export2019_4,
+qw_export2020_1, qw_export2020_2, qw_export2020_3, qw_export2020_4
+             ]);
+print(qw_IC, 'quarterly water 2000-2020');
+Map.addLayer(qw_IC.first().select('classification'), {}, 'qw_IC');
+
+///Calculate distance from water/// 
+// Define water points from non-water 
+//creating a function water_dist
+var water_dist = function(im){
+  var image_water = im.select("classification"); //one band from each image called image_water
+  var image_nonwater = image_water.eq(ee.Image(0)); //gives opposite of the water image
+  
+//define the sources. Mask the sources.
+var sources = ee.Image().toByte().paint(image_water.geometry(), 1);
+sources = sources.updateMask(image_water);
+  
+//define dist as low as possible to decrease computational time
+var maxDist = 20 * 1000; // 20km
+
+//cost image - computing the cumulative cost of travelling from any source to water 
+//each number of pixels you go it accumulates the distance
+//returns distance to the nearest water source 
+var dist = image_nonwater.cumulativeCost({
+source: sources, 
+maxDistance: maxDist,  
+});
+  return(dist.set('year', im.get('year')).set('quarter', im.get('quarter'))); //single image returned 
+};
+//use set and get to add the years and quarters info from the qw_IC
+//extracts the info from the IC 
+
+//use the function we defined above to create a new var 
+//mapping the IC collection using the function we create above
+//black is water (1) and nonwater is white (0)
+var all_dists = qw_IC.map(water_dist);
+
+// Add to the map
+//Map.addLayer(image_water, {}, 'water');
+//Map.addLayer(dist, {min: 0, max: maxDist}, 'dist');
+Map.addLayer(all_dists.first(), {}, 'all_dists');
+//Map.centerObject(bounds);
+
+//here we use .toBands to create one image from all_dists that we created before 
+var all_dists_im = all_dists.toBands();
+print(all_dists_im, 'all_dists_im');
+
+//export all dists 
+//this is a raster of the distance to surface water for each pixel for each quarter
+//have then used this in R to calculate the area of prime ibis habitat annually and in the dry season
+Export.image.toDrive({
+  image: all_dists_im,
+  description: 'all_dists_im',
+  folder: 'trapeangs',
+  scale: 30,
+  //shardSize: 256, //this still isnt working!!!
+  //fileDimensions: 256,
+  maxPixels: 1e13
+});
+
+///gibis nests///
+//just read this csv in without editing anything in the settings
+//then make the table into a feature collection where each nest is one feature 
+var gibis_nests = gibis_nests;
+
+Map.addLayer(gibis_nests, {color:'green'}, 'nest points');
+Map.centerObject(gibis_nests, 10);
+print(gibis_nests);
+
+Map.addLayer(northern_protected_areas, {}, 'N protected areas');
+Map.centerObject(northern_protected_areas, 10);
+
+///calculating gibis nest dists to water///
+//has put the data in alphabetical order so will need reordering in R! weird...
+//created a feature collection 
+var nest_dists = all_dists_im.reduceRegions({
+  collection:gibis_nests, 
+  reducer: ee.Reducer.mean(),
+  scale: 30
+  });
+print(nest_dists, 'nest_dists');
+
+//export nest dists 
+Export.table.toDrive(nest_dists, 'nest_dists', 'trapeangs');
+
+////selecting random comparison points////
+//select them within the protected areas
+//create 1000 random points in the region as default unless you specify the number of points you would like 
+var random_points = ee.FeatureCollection.randomPoints(northern_protected_areas, 1000);
+
+//calculating the distances of the random points to surface water 
+var random_dists = all_dists_im.reduceRegions({
+  collection:random_points, 
+  reducer: ee.Reducer.mean(),
+  scale: 30
+  });
+print(random_dists, 'random_dist');
+
+//display the randomly generated points.
+Map.centerObject(random_dists);
+Map.addLayer(random_dists, {}, 'random_dists');
+Export.table.toDrive(random_dists, 'random_dists', 'trapeangs');

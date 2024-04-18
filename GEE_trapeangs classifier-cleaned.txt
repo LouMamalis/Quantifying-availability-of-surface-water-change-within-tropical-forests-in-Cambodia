@@ -1,0 +1,319 @@
+//this is the google earth engine script used for part of this analysis
+//which creates the surface water classifier in google earth engine 
+
+//import in the surface water data to the script
+var image = ee.Image("JRC/GSW1_2/GlobalSurfaceWater");
+
+//fixL7 scanline error in Landsat 7 images
+//after 2003 errors occured. 
+var fixL7 = function(image){
+  var filled1b = image.focal_mean(2, 'square', 'pixels', 4);
+  var keepProps = image.propertyNames();
+return filled1b.blend(image).toInt16().copyProperties(image, keepProps); 
+};
+
+//cloud mask for landsat 4-7
+var cloudMaskL457 = function(image) {
+var qa = image.select('pixel_qa');
+//if the cloud bit (5) is set and the cloud confidence (7) is high
+//or the cloud shadow bit is set (3), then it's a bad pixel.
+var cloud = qa.bitwiseAnd(1 << 5)
+          .and(qa.bitwiseAnd(1 << 7))
+          .or(qa.bitwiseAnd(1 << 3));
+//remove edge pixels that don't occur in all bands
+var mask2 = image.mask().reduce(ee.Reducer.min());
+return image.updateMask(cloud.not()).updateMask(mask2);
+};
+
+//import landsat 7 layers
+//surface reflectance
+//filter for our area, cloudmask and selected dates 
+//set to the range of the g ibis
+//select date 2000-2002
+var L7coll = ee.ImageCollection('LANDSAT/LE07/C01/T1_SR')
+              // .filter(ee.Filter.lt('CLOUD_COVER',35))
+               .filterBounds(gibis)
+               .map(cloudMaskL457)
+               .filterDate('2000-01-01','2020-12-31');
+               //.map(fixL7);
+
+print(L7coll);
+
+//created a function for water index
+//computation based on IR, redder end better to see water
+//controlling the 'greenness' 
+//Code from this paper: Fisher, Adrian, Neil Flood, and Tim Danaher. 2016. 
+//“Comparing Landsat Water Index Methods for Automated Water Classification 
+//in Eastern Australia.” Remote Sensing of Environment 175 (March): 167–82.
+function addWI2015(input) {
+var wi2015 = (input.select('green').multiply(171))
+  .add(input.select('red').multiply(3))
+  .subtract(input.select('nir').multiply(70))
+  .subtract(input.select('swir1').multiply(45))
+  .subtract(input.select('swir2').multiply(71))
+  .add(1.7204)
+  
+      .rename('WI2015');
+  return input.addBands(wi2015);
+  
+}
+
+//creates a variable years
+//with the median of all the pixels within the years and months 
+var years = ee.List.sequence(2000, 2020);
+
+//list months
+var quarter = ee.List.sequence(1, 4);
+
+//new function, takes the list of years and maps the function y (year)
+//takes each list of months and maps a function that takes the variable m (month)
+//applying it to our image collection L7coll, filters
+//set attributes month and year to m and y - re names with metadata. 
+//filtered months and years we are interested in 
+//.select renames the band names
+//fromImages takes a list of images and converts it to an image collection
+var byQuarterYear = ee.ImageCollection.fromImages(
+      years.map(function(y) {
+        return quarter.map(function (q) {
+          return L7coll.filter(ee.Filter.calendarRange(((ee.Number(q).subtract(1)).multiply(3)).add(1), 
+          ee.Number(q).multiply(3), 'month'))
+                    .filter(ee.Filter.calendarRange(y, y, 'year'))
+                    .median()
+                    .set('quarter', q)
+                    .set('year', y)
+                    .select(['B1','B2','B3','B4','B5','B7'],
+                    ['blue','green','red','nir','swir1','swir2']);
+                   // .map(addWI2015);
+        });
+  }).flatten());
+
+//fix (as much as possible) landsat 7 scan line error by blurring
+var fixL7 = function(image){
+//  var filled1a = image.focal_mean(1, 'square', 'pixels', 2);
+  var filled1b = image.focal_mean(2, 'square', 'pixels', 4); // RC EDIT
+  var keepProps = image.propertyNames();
+//  return filled1a.blend(image).toInt16().copyProperties(image, keepProps);
+   return filled1b.blend(image).toInt16().copyProperties(image, keepProps); // RC EDIT
+};
+
+//flatten makes it from an image collection with a single image to an image 
+
+print(byQuarterYear);
+
+//creates variable waterquarterly 
+var waterquarterly = byQuarterYear.map(addWI2015);
+print('waterquarterly', waterquarterly);
+
+//here have chosen 3rd quarter. system:index is in the metadata of the
+//image collection waterquarterly 
+//here selected quarter 3
+print(waterquarterly.filterMetadata('system:index','equals','79'));
+
+//add waterquarterly to the map 
+//filters where quarter is equal to 3 and maps first image
+//if dont specify colour need {} anyway
+Map.addLayer(waterquarterly.filterMetadata('system:index','equals','79').first(), {}, 'waterquarterly');
+
+//this layer is the combined water and nonwater points
+//imported as a table
+//blue = water and purple = nonwater
+print(ibiswater, 'ibiswater');
+
+//////////////////// Classifier ////////////////////
+
+//select the bands from waterquarterly 
+var bands = ['WI2015','blue','green','red','nir','swir1','swir2'];
+
+//here we have defined the classifier type .smileCart
+//we also tried random forest (wasn't as good)
+//can also vary the number of nodes in the classifier
+
+/////Experimenting with classifiers///// 
+//balance training accuracy and tested overall accuracy to get best classifier
+//var classifier = ee.Classifier.smileCart(50); 
+//var classifier = ee.Classifier.smileGradientTreeBoost(50);
+var classifier = ee.Classifier.smileRandomForest(25);
+
+//need to define WI_training
+//selected the property system index and selects the third feature (quarter) in the water quarterly data
+//'#' shows the quarter of data we have selected we need to make sure the one selected here
+// is the best possible one for the testing and evaluation data, ie those closest to the Google Earth
+// satellite dates we used to identify trapeangs.
+var WI_training = waterquarterly.filterMetadata('system:index', 'equals', '79').first().sampleRegions({ 
+  collection: ibiswater,
+//  properties: ['waterhl'],
+  scale: 30
+});
+
+//first, add a column of random uniforms to the training dataset.
+var WI_withRandom = WI_training.randomColumn('random');
+
+//partition off the points to be used for training and testing data
+var WI_trainingPartition = WI_withRandom.filter(ee.Filter.lt('random', 0.7));
+var WI_testingPartition = WI_withRandom.filter(ee.Filter.gte('random', 0.7));
+
+print("WI_trainingPartition", WI_trainingPartition);
+
+//trained with 70% of our data
+//use feature waterhl, 1 or 0... water/ nonwater
+//bands (variant created above) selects all 7 of the bands 
+var WI_trainedClassifier = classifier.train(WI_trainingPartition, 'waterhl', bands);
+
+//classify the image with the same bands used for training
+//here we are just defining one image to apply the classifier to from waterquarterly 
+var WI_trainedClassified = waterquarterly.filterMetadata('system:index', 'equals', '79').first().classify(WI_trainedClassifier);
+//for the quarterly images: here we have trained the data on 79, which is the fourth quarter in 2019
+
+///testing///
+//this is a test that we created to see what the issue is with the layer
+//created without the mask 
+//seems to be a problem with the mask function... 
+var test_classifier = waterquarterly.map(function(im){return(im.classify(WI_trainedClassifier))});
+print(test_classifier, 'test');
+Map.addLayer(test_classifier.filterMetadata('system:index', 'equals', '79').first(), 
+  {min: 0, max: 1, palette: ['00FF0050', 'FF000050']}, 'test');
+  //just the classifier, no mask here 
+
+//all have issues with clouds
+//here we are trying to expand the mask to get rid of the bad data using focal_min
+var expandedmask = WI_trainedClassified.clip(gibis).mask().focal_min({
+  radius: 1.5 //can be adjusted to remove more or less area
+}).eq(1); //this expands the mask, 0 would be the opposite - filling in the mask gaps...
+
+//don't need to change the name of the WI_trainedClassified layer, just updating by adding the mask 
+var WI_trainedClassified = WI_trainedClassified.mask(expandedmask);
+
+//display classification results on map - clipped to the g ibis range 
+//red and green layer with the mask applied
+Map.addLayer(WI_trainedClassified.clip(gibis), {min: 0, max: 1, palette: ['00FF0050', 'FF000050']}, 'WI_trainedclassified');
+print("WI_trainedclassified", WI_trainedClassified);
+
+//get a confusion matrix representing resubstitution accuracy
+var WI_trainedAccuracy = WI_trainedClassifier.confusionMatrix();
+print('Error matrix on training partition: ', WI_trainedAccuracy);
+print('Accuracy over training partition: ', WI_trainedAccuracy.accuracy());
+
+//classify the test FeatureCollection (WI_testingPartition) selection of the data used for testing
+//has 95 features... why 95..?
+var WI_tested = WI_testingPartition.classify(WI_trainedClassifier);
+print('WI_tested', WI_tested);
+
+//get a confusion matrix representing expected accuracy
+//looks at the waterhl (0 or 1) and the classification band
+var WI_testAccuracy = WI_tested.errorMatrix('waterhl', 'classification'); 
+print('WI Tested overall accuracy: ', WI_testAccuracy.accuracy());
+
+////////////////////////////////////////////////////////////////////////////////////////
+//to classify each quarter using the above classifier, we simply need to map the function 
+//across all images in the waterquarterly ImageCollection:
+//'im' is an argument that applies the 'classification' as a new band to each image in the series from 2000 -2020
+//each image now has 8 bands 
+//use the trained data which will give the optimal results
+//the image that is the most similar to the water and nonwater points were made from (googleearth)
+var classify_function = function(im){
+    var classified_only = im.classify(WI_trainedClassifier);
+    //and expand the cloud mask:
+var classified = classified_only.focal_min({
+                    radius: 30, //1 pixel extra buffer
+                    units: "meters" //can be adjusted to remove more or less area. number of pixels. 
+                    }).eq(1); //this expands the mask out, creates a binary image
+    return(im.addBands(classified));
+  }; 
+
+//this came from the IC waterquarterly 
+//the classify_function was then mapped to create this IC
+//imagecollection of all the images from all quarters for all yrs - but is now classified (8 bands)
+var quarterly_water_classified = waterquarterly.map(classify_function);
+print(quarterly_water_classified, "quarterly_water_classified");
+//Map.addLayer(quarterly_water_classified, 'quarterly_water_classified');
+
+//maps this for the trained year and quarter - 79 
+//uses bands classification
+//changed to red and green - shows the water and nonwater now
+//got the mask working 
+//weird thing with the clip so we have clipped it at this point now
+Map.addLayer(quarterly_water_classified.filterMetadata('system:index', 'equals', '79').first().select('classification').clip(gibis), 
+{min: 0, max: 1, palette: ['00FF0050', 'FF000050']}, 'qw_IC');
+
+
+///for loop///
+//loops through applying the classifier to all of the years and quarters
+var i;
+var j; 
+var years = ["2000", "2001", "2002", "2003", "2004", "2005", "2006", "2007", "2008",
+            "2009", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020"];
+var quarter = ["1", "2", "3", "4"];
+
+for (i = 0; i < years.length; i++) {
+for (j = 0; j < quarter.length; j++) {
+var yr = years[i];
+var qr = quarter[j];
+print(yr);
+
+//export 84 images - all quarters and all years 
+Export.image.toAsset({
+  image:quarterly_water_classified.filterMetadata("year","equals", ee.Number.parse(yr)).filterMetadata("quarter", "equals", ee.Number.parse(qr)).first(),
+  description:"qw_export"+yr+"_"+qr, 
+  region:gibis,
+  scale:30,
+  assetId:"qw_export"+yr+"_"+qr, 
+  maxPixels:200000000
+  });
+}}
+
+////Extra bits and bobs////
+
+//import in the coord data as a CSV using 'asset'
+//note this data is not UTM so do not edit any of the advanced changes 
+//make sure any unknown data is deleted or this messes the whole thing up
+//if you do have UTM data then need to check the CSR value (EPSG:3148 for Cambodia) and the column names are correct for long and lat
+	
+//add the layer of points to the map and make it yellow
+//centre the object with a zoom scale of 10 
+Map.addLayer(trapeangs_CWS, {color:'yellow'}, 'trapeangs_CWS');
+Map.centerObject(trapeangs_CWS, 10);
+
+Map.addLayer(trapeangs_KPWS, {color:'red'}, 'trapeangs_KPWS');
+Map.centerObject(trapeangs_KPWS, 10);
+	
+//add the g ibis range layer to the map
+Map.addLayer(gibis, {color:'green'}, 'gibis_range');
+print(gibis);
+	
+//after bringing in the shapefile of the protected areas using assets
+//then import the file in so it appears at the top of the window 
+//read in the feature collection - which is a collection of shapefiles
+//geometry gives the geometry of the values in the table 
+//var preah_vihear = ee.FeatureCollection('users/lcm566/Preah_Vihear_PAs');
+//preah_vihear = preah_vihear.geometry();
+	
+//add the layer to the map and make it red so it can be seen 
+//Map.centerObject(preah_vihear);
+//Map.addLayer(preah_vihear, {color: 'red'}, 'preah_vihear');
+	
+//creating a second variable called surface water which is a new image
+//showing the global surface water
+//can clip for Cambodia only using KH_outline
+//from: https://global-surface-water.appspot.com/download
+//var surface_water = ee.Image("JRC/GSW1_2/GlobalSurfaceWater").clip(preah_vihear);
+	
+//going to create an image which compares the water year on year 
+//var totalclass6 = surface_water.select('transition').eq(6).reduceRegion(ee.Reducer.sum(),preah_vihear);
+//print(totalclass6, 'totalclass6');
+
+//var totalclass10 = surface_water.select('transition').eq(10).reduceRegion(ee.Reducer.sum(),preah_vihear);
+//print(totalclass10, 'totalclass10');
+	
+//mapping the surface water data (this has been clipped - see above)
+//Map.addLayer(surface_water, {}, 'surface_water');
+	
+print(water);
+print(nonwater);
+	
+//to export features collections as csv files to a google drive folder
+//name of the collection 
+//name of the file name you want
+//name of the folder in google drive where it will be saved 
+//Export.table.toDrive(nonwater, 'nonwater178_export', 'trapaengs');
+	
+//Export.map.toCloudStorage(ExportMap)
