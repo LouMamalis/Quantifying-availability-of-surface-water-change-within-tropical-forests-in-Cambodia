@@ -9,9 +9,11 @@ We conducted much of the analysis for this reserach using Google Earth Engine an
 
 **GEE_trapeangs classifier-cleaned.txt**: this script was used to create the surface water classifier. Here we conducted some pre-processsing of the satellite images and then we created the actual classifier which assesssed each pixel as either water or non-water. This was then used to map these changes over time. 
 
-*Raw data files needed: Thaumatibis_gigantea.shp, npa_en_16022021-polygon.shp, Trapeang_Survey_2015.shp*
+*Raw data files needed: Thaumatibis_gigantea.shp, npa_en_16022021-polygon.shp, CWS_trapeangs_coords.csv, KPWS_trapeang_coords.csv, allpoints.shp*
 
-**GEE_surface water transition mapping-cleaned.txt**: this script creates the surface water transition maps used for the analysis. For this research we wanted to evaluate the change in surface water availability across the northeast of Cambodia. To do this we used LandDAt 7 images between 2000 and 2020 and looked at how the surface water changed over time. 
+**GEE_surface water transition mapping-cleaned.txt**: this script creates the surface water transition maps used for the analysis. For this research we wanted to evaluate the change in surface water availability across the northeast of Cambodia. To do this we used LandSAt 7 images between 2000 and 2020 and looked at how the surface water changed over time. 
+
+*Raw data files needed: Thaumatibis_gigantea.shp*
 
 **GEE_surface water nest analysis-cleaned.txt**: this script computes the distance to surface water of the giant ibis nest points and the randomly generated non-nest points. Within this research we were assessing the impact of changes to surface water availability on the giant ibis. To do this we looked at the importance of surface water to the giant ibis nest locations. We then compared this relationship to surface water with the relationship between randomly generated non-nest points. 
 
