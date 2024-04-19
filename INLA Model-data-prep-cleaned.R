@@ -20,8 +20,6 @@ load('transition_map_500R.Rdata')
 load('initial_sw_500R.Rdata')
 
 ###Considering the impact of elevation###
-elevation <- raster("data-raw/elevation_map_500.tif")
-
 elevation <- readOGR(dsn = getwd(), 
                     layer = "elevation_map_500")
 
@@ -49,13 +47,9 @@ plot(gibis)
 PAs <- readOGR(dsn = "data-raw", 
                layer = "PAs_latlon")
 
+
+#plot
 plot(PAs)
-
-#save the file
-save(PAs, file = 'PAs.Rdata')
-
-#reload to use for the inla model 
-load("PAs.Rdata")
 
 #selecting the PAs that are within the g ibis range
 PAs <- PAs[gibis,]
