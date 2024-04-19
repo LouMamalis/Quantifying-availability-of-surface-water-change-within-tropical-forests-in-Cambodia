@@ -57,7 +57,9 @@ ggplot(all_data, aes(x = year, y = mean_annual_precip)) +
   geom_point() +
   scale_x_continuous(name = "Year") +
   scale_y_continuous(name = "Mean annual precipitation (mm)") +
-  geom_smooth(method=lm)
+  geom_smooth(method=lm) +
+  theme(panel.background = element_blank()) +
+  theme_classic()
 
 ggsave("mean_annual_precip_trendline_plot.jpg")
 
@@ -201,7 +203,13 @@ shapiro.test(all_data$ds_sw_km2) #-->0.5614
 
 ##precipitation 
 #linear regression to look at precip interactions with time 
-summary(lm(data = all_data_new, precip ~ year))$coefficients
+precip_yr_lm <- lm(data = all_data_new, precip ~ year)
+
+#view details
+summary(precip_yr_lm)$coefficients
+
+#ANOVA test
+anova(precip_yr_lm, test = "F")
 
 ##annual surface water area
 #linear regression to look at surface water area interactions with time 
