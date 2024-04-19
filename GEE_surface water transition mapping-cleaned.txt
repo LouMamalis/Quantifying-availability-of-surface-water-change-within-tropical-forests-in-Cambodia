@@ -1,8 +1,5 @@
-//this script is from google earth engine
-//creation of the surface water transition maps 
-
 //map ROI onto the map
-Map.addLayer(gibis, {color:'blue'}, 'gibis_range');
+Map.addLayer(gibis, {color:'blue'}, 'gibis_range'); 
 
 //import the export images individually (84) from the water classifier
 //each image is a summary of each quarter from each year
@@ -56,7 +53,6 @@ print(aw_IC, 'annual water');
 //create a table of data of how much flooding there is within the g ibis range
 //create a loop using map function 
 //creates property: sum at bottom (indiv for each year) 
-//im is an image...?
 //now a feature collection
 var annual_flood = aw_IC.map(function(im){
   return(im.reduceRegions({
@@ -66,9 +62,7 @@ var annual_flood = aw_IC.map(function(im){
   }));
 }).flatten();
 print(annual_flood, 'annual_flood');
-
-//attempting to print a time series chart using the annual water IC
-//print(ui.Chart.image.series(aw_IC, gibis, ee.Reducer.mean(), 30, maxPixels=200000000));
+Export.image.toDrive(annual_flood, 'annual_flood', 'trapeangs');
 
 //creates a feature collection with one image per year
 //uses the map function creating a feature from the IC
@@ -112,6 +106,7 @@ var dryseason_flood = dsw_IC.map(function(im){
 }).flatten();
 print(dryseason_flood, 'dryseason_flood');
 
+Export.image.toDrive(dryseason_flood, 'dryseason_flood', 'trapeangs');
 
 //here we are then summing the sw together for each dry season per year 
  var annual_dryseason_extent = dryseason_flood.map(function(f){
@@ -366,7 +361,6 @@ Export.table.toDrive(features,
 "PrecipitationYearly",
 "trapeangs",
 "PrecipitationYearly");
-//////
 
 ///STRM ELEVATION DATA///
 //read in the elevation data
@@ -374,16 +368,16 @@ Export.table.toDrive(features,
 var elevation_layer = elevation.clip(gibis);
 Map.addLayer(elevation_layer, {}, 'elevation');
 
-//trying to export...
-//did not export, not quite sure why 
+//export
 Export.image.toDrive({image:elevation_layer.select("elevation"), description:"elevation_map", folder:"trapeangs", 
 region:gibis, scale:30, maxPixels:2e8});
 
-
 ///ROADS///
+//just for ref
 Map.addLayer(roads, {}, 'roads');
 
 ///VILLAGES///
+//just for ref
 Map.addLayer(villages, {}, 'villages');
 
 //extracting sw data for the year 2000

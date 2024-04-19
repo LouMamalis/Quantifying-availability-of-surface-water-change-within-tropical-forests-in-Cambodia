@@ -1,8 +1,5 @@
-//script from google earth engine 
-//this script computes the distance to surface water of the giant ibis nest and non-nest points
-
 //image collection 
-//read in all the water quarterly images from before
+//read in all the water quarterly images from before 
 var qw_IC = ee.ImageCollection([
 qw_export2000_1, qw_export2000_2, qw_export2000_3, qw_export2000_4,
 qw_export2001_1, qw_export2001_2, qw_export2001_3, qw_export2001_4,
@@ -86,10 +83,12 @@ Export.image.toDrive({
 ///gibis nests///
 //just read this csv in without editing anything in the settings
 //then make the table into a feature collection where each nest is one feature 
-var gibis_nests = gibis_nests;
+//won't run as data redacted
+var gibis_nests = gibis_nests; 
 
+//won't run as data redacted
 Map.addLayer(gibis_nests, {color:'green'}, 'nest points');
-Map.centerObject(gibis_nests, 10);
+Map.centerObject(gibis_nests, 10); 
 print(gibis_nests);
 
 Map.addLayer(northern_protected_areas, {}, 'N protected areas');
@@ -98,6 +97,7 @@ Map.centerObject(northern_protected_areas, 10);
 ///calculating gibis nest dists to water///
 //has put the data in alphabetical order so will need reordering in R! weird...
 //created a feature collection 
+//won't run as data redacted
 var nest_dists = all_dists_im.reduceRegions({
   collection:gibis_nests, 
   reducer: ee.Reducer.mean(),
@@ -106,6 +106,7 @@ var nest_dists = all_dists_im.reduceRegions({
 print(nest_dists, 'nest_dists');
 
 //export nest dists 
+//won't run as data redacted
 Export.table.toDrive(nest_dists, 'nest_dists', 'trapeangs');
 
 ////selecting random comparison points////
