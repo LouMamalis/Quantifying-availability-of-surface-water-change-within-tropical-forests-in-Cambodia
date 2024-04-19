@@ -24,9 +24,19 @@ For the second stage of our analysis we used R and we have included the scripts 
 INLA Modelling scripts
 **INLA Model-data-prep-cleaned.R**: this script contains the code that we used to prepare the covariate data to be used in the INLA modelling. This included processes such as rasterising shapefiles and ensuring that the resolution of the data was uniform.
 
-*Raw data files needed: transition_map_500R.Rdata, initial_sw_500R.Rdata, elevation_map_500.tif, PAs_latlon.shp, osm_road_2020.shp, ELC_latlon.shp
+*Raw data files needed: transition_map_500R.Rdata, initial_sw_500R.Rdata, elevation_map_500.tif, PAs_latlon.shp, osm_road_2020.shp, ELC_latlon.shp*
 
-**INLA Model1-cleaned.R**, **INLA Model2-drier-cleaned.R** and **INLA Model3-drier-cleaned**: these three scripts are all very similar and contain the code that runs the Integrated Nested LaPlace models we used for this analysis. The differences between the models are that Model1 looks at any general changes of wetting or drying of land within study site. It was a gaussian model type. Model 2 looks at interactions between the selected covariates and areas of drying land within the study site. This was a binomial model type. Model 3 was also binomial but looked at the interactions in relation to areas that were getting wetter over time. 
+**INLA Model1-cleaned.R**: actual code that runs the Integrated Nested LaPlace Model 1 looks at interactions between the selected covariates and any general changes of wetting or drying of land within study site and is a gaussian model type.
+
+*Raw data files needed covariate_stack_new.Rdata*
+
+**INLA Model2-drier-cleaned.R**: actual code that runs the Integrated Nested LaPlace Model 2 looks at interactions between the selected covariates and areas of drying land within the study site and is a binomial model type.
+
+*Raw data files needed covariate_stack_bino.Rdata*
+
+**INLA Model3-drier-cleaned**: actual code that runs the Integrated Nested LaPlace Model 3 looks at interactions between the selected covariates and areas of flooding land within the study site and is a binomial model type.
+
+*Raw data files needed covariate_stack_bino.Rdata*
 
 Suitable giant ibis habitat loss scripts
 **Gibis Habitat-Sensitivity Checks-cleaned.R**: this script was used to complete a sensitivity check on the chosen percentile threshold for the distance to surface water. Here we looked at the distance to surface water of nest and non-nest points for the 65th and 85th percentile to compare with the chosen 75th percentile. 
