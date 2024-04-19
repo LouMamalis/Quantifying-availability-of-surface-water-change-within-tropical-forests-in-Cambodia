@@ -24,6 +24,8 @@ For the second stage of our analysis we used R and we have included the scripts 
 INLA Modelling scripts
 **INLA Model-data-prep-cleaned.R**: this script contains the code that we used to prepare the covariate data to be used in the INLA modelling. This included processes such as rasterising shapefiles and ensuring that the resolution of the data was uniform.
 
+*Raw data files needed: transition_map_500R.Rdata, initial_sw_500R.Rdata, elevation_map_500.tif, PAs_latlon.shp, osm_road_2020.shp, ELC_latlon.shp
+
 **INLA Model1-cleaned.R**, **INLA Model2-drier-cleaned.R** and **INLA Model3-drier-cleaned**: these three scripts are all very similar and contain the code that runs the Integrated Nested LaPlace models we used for this analysis. The differences between the models are that Model1 looks at any general changes of wetting or drying of land within study site. It was a gaussian model type. Model 2 looks at interactions between the selected covariates and areas of drying land within the study site. This was a binomial model type. Model 3 was also binomial but looked at the interactions in relation to areas that were getting wetter over time. 
 
 Suitable giant ibis habitat loss scripts
