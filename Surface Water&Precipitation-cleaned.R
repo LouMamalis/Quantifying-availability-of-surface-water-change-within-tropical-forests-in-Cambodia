@@ -55,13 +55,7 @@ ggplot(all_data, aes(x = year, y = pixel_sum)) +
 #added a trendline - decline
 ggplot(all_data, aes(x = year, y = mean_annual_precip)) +
   geom_point() +
-  scale_x_continuous(name = "Year") +
-  scale_y_continuous(name = "Mean annual precipitation (mm)") +
-  geom_smooth(method=lm) +
-  theme(panel.background = element_blank()) +
-  theme_classic()
-
-ggsave("mean_annual_precip_trendline_plot.jpg")
+  geom_smooth(method=lm)
 
 #line plot of change in surface water (number of flooded pixels) over time
 all_data  %>%
@@ -187,7 +181,8 @@ ggplot() +
         text=element_text(size=10)) #change font size of ALL text in plot 
 
 #save
-ggsave("precip_sw.png", width = 10, height = 8, units = "cm")
+ggsave("precip_sw-revised.png", width = 14, height = 16, units = "cm")
+ggsave("precip_sw-revised.pdf", width = 14, height = 16, units = "cm")
 
 ####Stats tests####
 ##Shapiro-wilks test
@@ -203,13 +198,7 @@ shapiro.test(all_data$ds_sw_km2) #-->0.5614
 
 ##precipitation 
 #linear regression to look at precip interactions with time 
-precip_yr_lm <- lm(data = all_data_new, precip ~ year)
-
-#view details
-summary(precip_yr_lm)$coefficients
-
-#ANOVA test
-anova(precip_yr_lm, test = "F")
+summary(lm(data = all_data_new, precip ~ year))$coefficients
 
 ##annual surface water area
 #linear regression to look at surface water area interactions with time 

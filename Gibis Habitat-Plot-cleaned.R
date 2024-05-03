@@ -31,17 +31,21 @@ plot_names <- c('1st' = "2000-2004",
                 '2nd' = "2016-2020")
 
 #making plot
-ggplot(results.long, aes(x=time_period, y=area, fill=season)) +
+plot <- ggplot(results.long, aes(x=time_period, y=area, fill=season)) +
   geom_boxplot() +
   xlab("Time period") + #x axis label
   ylab(bquote("Area of suitable giant ibis nesting habitat  " (km^2))) +
   scale_x_discrete(labels=c("2000-2004", "2016-2020")) +
-  theme(axis.title.x = element_text(size=12, face="bold"),
-  axis.title.y = element_text(size=12, face="bold"))  + #change the x axis labels 
-  scale_fill_manual(values=c("#ce7e00", "#00868B"), #dry and wet season colours 
-                  labels=c('Dry', 'Wet'))+
+  scale_fill_manual(values=c("#ce7e00", "#00868B"), name = "",#dry and wet season colours 
+                  labels=c('Dry season', 'Wet season')) +
+  #theme(legend.position = "bottom") , #move legend to bottom
+   #     text=element_text(size=12)) +
+  guides(fill = guide_legend(override.aes = list(linetype = 0))) + #removes the line and cats whiskers in legend 
   theme_classic()
-  
-#save 
-ggsave("figs/gibis_habitat_plot.png", width = 16, height = 14, units = "cm")
 
+#last few edits 
+plot + theme(legend.position = "bottom", #move legend to bottom
+             text=element_text(size=12))
+#save 
+ggsave("figs/gibis_habitat_plot-revised.png", width = 14, height = 16, units = "cm")
+ggsave("figs/gibis_habitat_plot-revised.pdf", width = 14, height = 16, units = "cm")
