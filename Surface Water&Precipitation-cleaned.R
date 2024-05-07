@@ -160,14 +160,14 @@ coeff = 10
 ggplot() + 
   geom_bar(data = all_data_new_long, mapping = aes(x=year, y=mm, fill = precip_var), 
            position="dodge", stat="identity") + #this makes the bar plot with the long data 
-  scale_fill_manual(values = c("sw_km2" = "#00868B", "sw_km2_ds"= "#ce7e00"), #this sets the colour of the bars according to the precip_var label 
+  scale_fill_manual(values = c("sw_km2" = "#0047ab", "sw_km2_ds"= "#ce7e00"), #this sets the colour of the bars according to the precip_var label 
                     labels=c('Annual surface water', 'Dry season surface water')) + #adds the labels to the legend 
-  geom_smooth(data = all_data_new_long, mapping = aes(x=year, y=mm, color = precip_var), 
+  geom_smooth(data = all_data_new_long, mapping = aes(x=year, y=mm, color = precip_var, fill = precip_var), #fill makes the 95% confidence intervals show
               method=lm, se=TRUE, size=0.5) +
   geom_line(data = all_data_new, mapping = aes(x=year, y = precip*coeff, colour = "Annual precipitation (mm)"), #add the precip line plot
             size = 0.5) + 
   scale_y_continuous(sec.axis = sec_axis(~ ./coeff, name = "Annual precipitation (mm)"),) + #adds second y axis and the label 
-  scale_color_manual(values=c("#003044", "#00868B", "#ce7e00"), name ="", #this assigns the colours for the trendlines and suppresses the legend name
+  scale_color_manual(values=c("#003044", "#0047ab", "#ce7e00"), name ="", #this assigns the colours for the trendlines and suppresses the legend name
                      labels=c("Annual precipitation", "Wet season", "Dry season")) + #this gives the legend names
   geom_smooth(data = all_data_new, mapping = aes(x=year, y=precip*coeff, color = precip), #multiply by the coeff so the line is in the right place 
               colour = "#003044", method=lm, se=TRUE, size=0.5) + #sets the colour of the trendline
@@ -176,13 +176,13 @@ ggplot() +
   ylab(bquote("Area of surface water " (km^2))) + #y axis label with km2 properly written
   theme_bw() + #remove the grey background
   theme_classic()  +#removes the grid lines on the plot
-  guides(fill = "none") + #suppresses the legend for the scale_fill_manual section 
+  #guides(fill = "none") + #suppresses the legend for the scale_fill_manual section 
   theme(legend.position = "bottom", #move legend to bottom
-        text=element_text(size=10)) #change font size of ALL text in plot 
+        text=element_text(size=12)) #change font size of ALL text in plot 
 
 #save
-ggsave("precip_sw-revised.png", width = 14, height = 16, units = "cm")
-ggsave("precip_sw-revised.pdf", width = 14, height = 16, units = "cm")
+ggsave("precip_sw-revised2.png", width = 14, height = 16, units = "cm")
+ggsave("precip_sw-revised2.pdf", width = 14, height = 16, units = "cm")
 
 ####Stats tests####
 ##Shapiro-wilks test
