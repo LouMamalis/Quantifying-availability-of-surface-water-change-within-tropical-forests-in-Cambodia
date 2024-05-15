@@ -198,7 +198,13 @@ shapiro.test(all_data$ds_sw_km2) #-->0.5614
 
 ##precipitation 
 #linear regression to look at precip interactions with time 
-summary(lm(data = all_data_new, precip ~ year))$coefficients
+model1 <- lm(data = all_data_new, precip ~ year)
+
+#explore the
+summary(model1)$coefficients
+
+#run an ANOVA on this model 
+anova(model1, test = "F")
 
 ##annual surface water area
 #linear regression to look at surface water area interactions with time 
