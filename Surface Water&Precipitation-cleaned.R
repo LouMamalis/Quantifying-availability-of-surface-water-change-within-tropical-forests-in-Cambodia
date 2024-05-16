@@ -203,8 +203,8 @@ model1 <- lm(data = all_data_new, precip ~ year)
 #explore the
 summary(model1)$coefficients
 
-#run an ANOVA on this model 
-anova(model1, test = "F")
+#summary for the paper
+summary(model1)
 
 ##annual surface water area
 #linear regression to look at surface water area interactions with time 
