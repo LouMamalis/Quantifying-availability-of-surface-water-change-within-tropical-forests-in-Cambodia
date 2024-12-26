@@ -5,7 +5,7 @@ This article can be found here: ...DOI...
 
 This README file outlines a summary of the different scripts included within this repository. 
 
-We conducted much of the analysis for this reserach using Google Earth Engine and we are making the scripts available here in .txt format so that they are accessible to anyone.
+We conducted much of the analysis for this research using Google Earth Engine and we are making the scripts available here in .txt format so that they are accessible to anyone.
 
 **GEE_trapeangs classifier-cleaned.txt**: this script was used to create the surface water classifier. Here we conducted some pre-processsing of the satellite images and then we created the actual classifier which assesssed each pixel as either water or non-water. This was then used to map these changes over time. 
 
